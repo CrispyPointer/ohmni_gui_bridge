@@ -9,7 +9,8 @@
   var ros = new ROSLIB.Ros({
     url : 'ws://localhost:9090'
   });
-
+  //Including the roslibjs scripts in order to communicate with ROS topics.
+  //Create rosbridge node to connect the server to ROS master.
   ros.on('connection', function() {
     document.getElementById("status").innerHTML = "Connected";
   });
@@ -22,24 +23,21 @@
     document.getElementById("status").innerHTML = "Closed";
   });
 
-  var txt_listener = new ROSLIB.Topic({
-    ros : ros,
-    name : '/txt_msg',
-    messageType : 'std_msgs/String'
-  });
-
-  var cmd_vel_listener = new ROSLIB.Topic({
+//Published node to velocity topic
+//Topic name could be replaced with "tb_cmd_vel" or "/cmd_vel_accel"
+  var cmd_vel_talker = new ROSLIB.Topic({
     ros : ros,
     name : "/cmd_vel_accel",
     messageType : 'geometry_msgs/Twist'
   });
 
+//Publish desire twist message into the velocity topic
   move = function (linear, angular) {
     var twist = new ROSLIB.Message({
       linear: {
         x: linear,
         y: 0,
-        z: 0
+        z: 0,
       },
       angular: {
         x: 0,
@@ -47,24 +45,85 @@
         z: angular
       }
     });
-    cmd_vel_listener.publish(twist);
+    cmd_vel_talker.publish(twist);
   }
 
-  txt_listener.subscribe(function(m) {
-    document.getElementById("msg").innerHTML = m.data;
-    move(1, 0);
+  var Straight, Stop, room;
+
+//Function for navigation to desire destinations.
+//Using setTimeout and setInterval to publish constant twist message
+//since the roslibjs limited to only 1Hz published message at a time.  
+  function Turn_counterclockwise_A(){
+    setTimeout(function(){ move(0,0.5); }, 5010);
+    setTimeout(function(){ move(0,0.5); }, 6020);
+    setTimeout(function(){ move(0,0.5708); }, 7030);
+  }
+
+  function Turn_counterclockwise_B(){
+    move(0,0.5);
+    setTimeout(function(){ move(0,0.5); }, 1010);
+    setTimeout(function(){ move(0,0.5708); }, 2020);
+  }
+
+  function Return_base(){
+    setTimeout(function(){ move(0,0.5); }, 8010);
+    setTimeout(function(){ move(0,0.5); }, 9020);
+    setTimeout(function(){ move(0,0.5); }, 10030);
+    setTimeout(function(){ move(0,0.5); }, 11040);
+    setTimeout(function(){ move(0,0.5708); }, 12050);
+    setTimeout(function(){ move(0,0.5708); }, 13060);
+  }
+
+  function stop(){
+    clearInterval(Straight);
+  }
+
+  function go_straight(){
+    Straight = setInterval(function(){ move(0.5,0); }, 500);
+  }
+
+  function roomB(){
+    go_straight();
+    Stop = setTimeout(stop, 5000);
+    Turn_counterclockwise_A();
+  }
+
+  function roomA(){
+    Turn_counterclockwise_B();
+    setTimeout(function(){go_straight();}, 4000);
+    Stop = setTimeout(stop, 8000);
+    Return_base();
+  }
+
+  var temp_listener = new ROSLIB.Topic({
+    ros : ros,
+    name : '/sensor1',
+    messageType : 'std_msgs/Float64'
+  });
+
+  temp_listener.subscribe(function(m) {
+    document.getElementById("msg1").innerHTML = m.data;
+  });
+
+  var heart_listener = new ROSLIB.Topic({
+    ros : ros,
+    name : '/sensor2',
+    messageType : 'std_msgs/Float64'
+  });
+
+  heart_listener.subscribe(function(m) {
+    document.getElementById("msg2").innerHTML = m.data;
   });
 
 </script>
 </head>
 
 <body>
-  <h1>Simple ROS User Interface</h1>
+  <h1>Simple Ohmnibot Interface</h1>
   <p>Connection status: <span id="status"></span></p>
-  <p>Last /txt_msg received: <span id="msg"></span></p>
-  <button type="button" onclick="move(0.5,0), alert('Move forward 0.5m/s in 1s')">Move forward</button>
-  <button type="button" onclick="move(-0.5,0), alert('Move backward 0.5m/s in 1s')"">Move backward</button>
-  <button type="button" onclick="move(0,0.5), alert('turn clockwise 0.5m/s in 1s')">Turn counterclockwise</button>
-  <button type="button" onclick="move(0,-0.5), alert('Turn counterclockwise 0.5m/s in 1s')">Turn clockwise</button>
+  <button type="button" onclick="roomB()">Room B</button>
+  <button type="button" onclick="roomA()">Room A</button>
+  <p> Current temperature: <span id="msg1"></span></p>
+  <p> Current spO2: <span id="msg2"></span></p>
 </body>
 </html>
